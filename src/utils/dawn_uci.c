@@ -28,6 +28,7 @@ void uci_get_hostname(char* hostname)
     dawnlog_debug_func("Entering...");
 
     char path[]= "system.@system[0].hostname";
+    char path_i[]= "network.meshx0.hostname";
     struct  uci_ptr ptr;
     struct  uci_context *c = uci_alloc_context();
     dawn_regmem(c);
@@ -36,10 +37,12 @@ void uci_get_hostname(char* hostname)
         return;
     }
 
-    if ((uci_lookup_ptr(c, &ptr, path, true) != UCI_OK) || (ptr.o==NULL || ptr.o->v.string==NULL)){
-        uci_free_context(c);
-        dawn_unregmem(c);
-        return;
+    if ((uci_lookup_ptr(c, &ptr, path_i, true) != UCI_OK) || (ptr.o==NULL || ptr.o->v.string==NULL)){
+        if ((uci_lookup_ptr(c, &ptr, path, true) != UCI_OK) || (ptr.o==NULL || ptr.o->v.string==NULL)){
+            uci_free_context(c);
+            dawn_unregmem(c);
+            return;
+        }
     }
 
     if(ptr.flags & UCI_LOOKUP_COMPLETE)
