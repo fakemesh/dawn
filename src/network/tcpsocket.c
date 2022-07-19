@@ -364,12 +364,15 @@ void send_tcp(char *msg) {
         list_for_each_entry_safe(con, tmp, &tcp_sock_list, list)
         {
             if (con->connected) {
+                int need_close = 0;
                 int len_ustream = ustream_write(&con->stream.stream, final_str, final_len, 0);
                 dawnlog_debug("Ustream send: %d\n", len_ustream);
-                if (len_ustream <= 0) {
+                if (ustream_pending_data(&con->stream.stream, true) >= 24*1024 + final_len /* 24K buffered data is enough? */)
+                    need_close = 1;
+                if (len_ustream <= 0 || need_close) {
                     dawnlog_error("Ustream error(" STR_QUOTE(__LINE__) ")!\n");
                     //ERROR HANDLING!
-                    if (con->stream.stream.write_error) {
+                    if (con->stream.stream.write_error || need_close) {
                         ustream_free(&con->stream.stream);
                         dawn_unregmem(&con->stream.stream);
                         close(con->fd.fd);
@@ -401,12 +404,15 @@ void send_tcp(char *msg) {
         list_for_each_entry_safe(con, tmp, &tcp_sock_list, list)
         {
             if (con->connected) {
+                int need_close = 0;
                 int len_ustream = ustream_write(&con->stream.stream, final_str, final_len, 0);
                 dawnlog_debug("Ustream send: %d\n", len_ustream);
-                if (len_ustream <= 0) {
+                if (ustream_pending_data(&con->stream.stream, true) > 24*1024 + final_len /* 24K buffered data is enough? */)
+                    need_close = 1;
+                if (len_ustream <= 0 || need_close) {
                     //ERROR HANDLING!
                     dawnlog_error("Ustream error(" STR_QUOTE(__LINE__) ")!\n");
-                    if (con->stream.stream.write_error) {
+                    if (con->stream.stream.write_error || need_close) {
                         ustream_free(&con->stream.stream);
                         dawn_unregmem(&con->stream.stream);
                         close(con->fd.fd);
