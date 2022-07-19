@@ -66,13 +66,10 @@ static void client_notify_state(struct ustream *s) {
     dawnlog_debug_func("Entering...");
 
     struct client *cl = container_of(s, struct client, s.stream);
-    if (!s->eof)
-        return;
 
-    dawnlog_error("eof!, pending: %d, total: %d\n", s->w.data_bytes, cl->ctr);
+    dawnlog_error("eof=%d!, pending: %d, total: %d, write_error=%d!\n", s->eof, s->w.data_bytes, cl->ctr, s->write_error);
 
-    if (!s->w.data_bytes)
-        return client_close(s);
+    return client_close(s);
 
 }
 
@@ -96,13 +93,9 @@ static void client_to_server_state(struct ustream *s) {
 
     dawnlog_debug_func("Entering...");
 
-    if (!s->eof)
-        return;
+    dawnlog_error("eof=%d!, pending: %d, total: %d, write_error=%d!\n", s->eof, s->w.data_bytes, cl->ctr, s->write_error);
 
-    dawnlog_error("eof!, pending: %d, total: %d\n", s->w.data_bytes, cl->ctr);
-
-    if (!s->w.data_bytes)
-        return client_to_server_close(s);
+    return client_to_server_close(s);
 
 }
 
