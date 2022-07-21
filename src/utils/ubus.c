@@ -171,12 +171,14 @@ static const struct blobmsg_policy dawn_umdns_table_policy[__DAWN_UMDNS_TABLE_MA
 enum {
     DAWN_UMDNS_IPV4,
     DAWN_UMDNS_PORT,
+    DAWN_UMDNS_IPV4_DUP,
     __DAWN_UMDNS_MAX,
 };
 
 static const struct blobmsg_policy dawn_umdns_policy[__DAWN_UMDNS_MAX] = {
         [DAWN_UMDNS_IPV4] = {.name = "ipv4", .type = BLOBMSG_TYPE_STRING},
         [DAWN_UMDNS_PORT] = {.name = "port", .type = BLOBMSG_TYPE_INT32},
+        [DAWN_UMDNS_IPV4_DUP] = {.name = "ipv4", .type = BLOBMSG_TYPE_STRING},
 };
 
 enum {
@@ -1370,6 +1372,9 @@ static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *
         if (tb_dawn[DAWN_UMDNS_IPV4] && tb_dawn[DAWN_UMDNS_PORT]) {
             dawnlog_debug("IPV4: %s\n", blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]));
             dawnlog_debug("Port: %d\n", blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
+            if (tb_dawn[DAWN_UMDNS_IPV4_DUP]) {
+                umdns_need_reload = 1;
+            }
         } else {
             if (!tb_dawn[DAWN_UMDNS_IPV4] && tb_dawn[DAWN_UMDNS_PORT]) {
                 umdns_need_reload = 1;
