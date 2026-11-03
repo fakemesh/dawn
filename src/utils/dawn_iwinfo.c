@@ -11,8 +11,6 @@ int call_iwinfo(char *client_addr);
 
 int parse_rssi(char *iwinfo_string);
 
-int get_rssi(const char *ifname, struct dawn_mac client_addr);
-
 int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
 
 #define IWINFO_ESSID_MAX_SIZE    32

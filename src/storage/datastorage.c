@@ -487,6 +487,11 @@ int kick_clients(struct dawn_mac bssid_mac, uint32_t id) {
     // Keep a list of nearby APs to update local AP Neighbor Report from
     struct kicking_nr* ap_nr_list = NULL;
 
+    if (!kicking_ap) {
+        dawnlog_warning("Cannot kick clients: AP " MACSTR " is not in storage\n", MAC2STR(bssid_mac.u8));
+        goto out;
+    }
+
     dawnlog_info("AP BSSID " MACSTR ": Looking for candidates to kick\n", MAC2STR(kicking_ap->bssid_addr.u8));
 
     // Seach for BSSID
@@ -656,6 +661,7 @@ int kick_clients(struct dawn_mac bssid_mac, uint32_t id) {
 
     dawnlog_trace("KICKING: --------- AP Finished ---------\n");
 
+out:
     dawn_mutex_unlock(&ap_array_mutex);
     dawn_mutex_unlock(&probe_array_mutex);
     dawn_mutex_unlock(&client_array_mutex);
@@ -673,15 +679,20 @@ void update_iw_info(struct dawn_mac bssid_mac) {
     dawn_mutex_require(&ap_array_mutex);
     ap* this_ap = ap_array_get_ap(bssid_mac);
 
+    if (!this_ap) {
+        dawnlog_warning("Cannot update IW info: AP " MACSTR " is not in storage\n", MAC2STR(bssid_mac.u8));
+        goto out;
+    }
+
     dawnlog_trace("IW info update for AP " MACSTR "\n", MAC2STR(bssid_mac.u8));
 
     // Go through clients for BSSID
     for (client* j = *client_find_first_bc_entry(bssid_mac, dawn_mac_null, false);
             j != NULL && mac_is_equal_bb(j->bssid_addr, bssid_mac); j = j->next_entry_bc) {
         // update rssi
-        int rssi = get_rssi_iwinfo(j->client_addr);
+        int rssi = get_rssi(this_ap->iface, j->client_addr);
         dawnlog_trace("Expected throughput %f Mbit/sec\n",
-                iee80211_calculate_expected_throughput_mbit(get_expected_throughput_iwinfo(j->client_addr)));
+                iee80211_calculate_expected_throughput_mbit(get_expected_throughput(this_ap->iface, j->client_addr)));
 
         if (rssi != INT_MIN) {
             if (probe_array_update_rssi(j->client_addr, this_ap, rssi, true) == NULL) {
@@ -695,6 +706,7 @@ void update_iw_info(struct dawn_mac bssid_mac) {
 
     dawnlog_trace("---------------------------\n");
 
+out:
     dawn_mutex_unlock(&ap_array_mutex);
     dawn_mutex_unlock(&probe_array_mutex);
     dawn_mutex_unlock(&client_array_mutex);
@@ -844,8 +856,11 @@ probe_entry* probe_array_update_rssi(struct dawn_mac client_addr, ap* connected_
 {
     dawnlog_debug_func("Entering...");
 
+    if (!connected_ap)
+        return NULL;
+
     dawn_mutex_require(&probe_array_mutex);
-    probe_entry* probe_req_new = dawn_malloc(sizeof(probe_entry));
+    probe_entry* probe_req_new = dawn_calloc(1, sizeof(probe_entry));
     probe_entry* probe_req_updated = NULL;
 
     if (probe_req_new) {

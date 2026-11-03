@@ -18,6 +18,9 @@ extern char hostapd_dir_glob[];
  */
 int get_rssi_iwinfo(struct dawn_mac client_addr);
 
+/** Return a client's RSSI on one interface, or INT_MIN if it is not associated. */
+int get_rssi(const char *ifname, struct dawn_mac client_addr);
+
 /**
  * Get expected throughut using the mac adress of the client.
  * Function uses libiwinfo and searches through all interfaces that are existing.

@@ -107,15 +107,15 @@ int ubus_send_probe_via_network(struct probe_entry_s *probe_entry, bool is_beaco
     return 0;
 }
 
-int get_rssi_iwinfo(struct dawn_mac client_addr)
+int get_rssi(const char *ifname, struct dawn_mac client_addr)
 {
-    printf("get_rssi_iwinfo() was called...\n");
+    printf("get_rssi() was called for %s...\n", ifname);
     return 0;
 }
 
-int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
+int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
 {
-    printf("get_expected_throughput_iwinfo() was called...\n");
+    printf("get_expected_throughput() was called for %s...\n", ifname);
     return 0;
 }
 
