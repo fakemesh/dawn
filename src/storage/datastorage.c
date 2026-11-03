@@ -640,6 +640,10 @@ int kick_clients(struct dawn_mac bssid_mac, uint32_t id) {
         remove_kicking_nr_list(kick_nr_list);
         kick_nr_list = NULL;
 
+        /* A successful kick may have freed j. Stop before advancing it. */
+        if (kicked_clients != 0)
+            break;
+
         j = j->next_entry_bc;
     }
 
