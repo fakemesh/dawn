@@ -51,8 +51,8 @@ static const struct blobmsg_policy prob_policy[__PROB_MAX] = {
         [PROB_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
         [PROB_SIGNAL] = {.name = "signal", .type = BLOBMSG_TYPE_INT32},
         [PROB_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
-        [PROB_HT_CAPABILITIES] = {.name = "ht_capabilities", .type = BLOBMSG_TYPE_TABLE}, //ToDo: Change to int8?
-        [PROB_VHT_CAPABILITIES] = {.name = "vht_capabilities", .type = BLOBMSG_TYPE_TABLE}, //ToDo: Change to int8?
+        [PROB_HT_CAPABILITIES] = {.name = "ht_capabilities", .type = BLOBMSG_TYPE_UNSPEC},
+        [PROB_VHT_CAPABILITIES] = {.name = "vht_capabilities", .type = BLOBMSG_TYPE_UNSPEC},
         [PROB_RCPI] = {.name = "rcpi", .type = BLOBMSG_TYPE_INT32},
         [PROB_RSNI] = {.name = "rsni", .type = BLOBMSG_TYPE_INT32},
 };
@@ -149,6 +149,22 @@ int parse_to_hostapd_notify(struct blob_attr* msg, hostapd_notify_entry* notify_
     return 0;
 }
 
+static bool parse_capability(struct blob_attr *attr) {
+    if (!attr)
+        return false;
+
+    switch (blobmsg_type(attr)) {
+    case BLOBMSG_TYPE_TABLE: /* hostapd reports a capability table. */
+        return true;
+    case BLOBMSG_TYPE_INT32: /* DAWN peers send numeric flags. */
+        return blobmsg_get_u32(attr) != 0;
+    case BLOBMSG_TYPE_INT8:
+        return blobmsg_get_u8(attr) != 0;
+    default:
+        return false;
+    }
+}
+
 probe_entry *parse_to_probe_req(struct blob_attr* msg) {
     struct blob_attr* tb[__PROB_MAX];
 
@@ -214,21 +230,8 @@ probe_entry *parse_to_probe_req(struct blob_attr* msg) {
         prob_req->rsni = -1;
     }
 
-    if (tb[PROB_HT_CAPABILITIES]) {
-        prob_req->ht_capabilities = true;
-    }
-    else
-    {
-        prob_req->ht_capabilities = false;
-    }
-
-    if (tb[PROB_VHT_CAPABILITIES]) {
-        prob_req->vht_capabilities = true;
-    }
-    else
-    {
-        prob_req->vht_capabilities = false;
-    }
+    prob_req->ht_capabilities = parse_capability(tb[PROB_HT_CAPABILITIES]);
+    prob_req->vht_capabilities = parse_capability(tb[PROB_VHT_CAPABILITIES]);
 
     return prob_req;
 }
