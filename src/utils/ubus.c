@@ -2065,9 +2065,15 @@ int build_hearing_map_sort_client(struct blob_buf *b) {
             same_client = true;
         }
 
-        // Find the client if it is actually connected somewhere...
+        // Copy client state while holding the lock; peer updates may replace it.
+        bool has_client = false;
+        uint8_t rrm_enabled_capa = 0;
         dawn_mutex_lock(&client_array_mutex);
         client* this_client = client_array_get_client(this_entry->k->client_addr);
+        if (this_client) {
+            has_client = true;
+            rrm_enabled_capa = this_client->rrm_enabled_capa;
+        }
         dawn_mutex_unlock(&client_array_mutex);
 
         // Add the probe details
@@ -2087,8 +2093,8 @@ int build_hearing_map_sort_client(struct blob_buf *b) {
         blobmsg_add_u8(b, "ht_support", this_entry->ap_k->ht_support);
         blobmsg_add_u8(b, "vht_support", this_entry->ap_k->vht_support);
 
-        if (this_client != NULL)
-            blobmsg_add_rrm_string(b, "rrm-caps", this_client->rrm_enabled_capa);
+        if (has_client)
+            blobmsg_add_rrm_string(b, "rrm-caps", rrm_enabled_capa);
 
         blobmsg_add_u32(b, "score", eval_probe_metric(this_entry->k, this_entry->ap_k));
 
