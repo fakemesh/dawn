@@ -255,7 +255,13 @@ int parse_to_client_req(struct blob_attr *msg, client_req_entry *client_req) {
 
     dawnlog_debug_func("Entering...");
 
-    blobmsg_parse(auth_policy, __AUTH_MAX, tb, blob_data(msg), blob_len(msg));
+    if (!msg || !client_req)
+        return UBUS_STATUS_INVALID_ARGUMENT;
+
+    memset(client_req, 0, sizeof(*client_req));
+    if (blobmsg_parse(auth_policy, __AUTH_MAX, tb, blob_data(msg), blob_len(msg)) ||
+        !tb[AUTH_BSSID_ADDR] || !tb[AUTH_CLIENT_ADDR] || !tb[AUTH_TARGET_ADDR])
+        return UBUS_STATUS_INVALID_ARGUMENT;
 
     if (hwaddr_aton(blobmsg_data(tb[AUTH_BSSID_ADDR]), client_req->bssid_addr.u8))
         return UBUS_STATUS_INVALID_ARGUMENT;
@@ -386,7 +392,10 @@ int handle_auth_req(struct blob_attr* msg) {
     }
     else
     {
-        parse_to_client_req(msg, auth_req);
+        if (parse_to_client_req(msg, auth_req)) {
+            dawn_free(auth_req);
+            return ret;
+        }
 
         dawnlog_debug("Auth entry: ");
         print_client_req_entry(DAWNLOG_DEBUG, auth_req);
@@ -467,7 +476,10 @@ static int handle_assoc_req(struct blob_attr *msg) {
     }
     else
     {
-        parse_to_client_req(msg, assoc_req);
+        if (parse_to_client_req(msg, assoc_req)) {
+            dawn_free(assoc_req);
+            return ret;
+        }
         dawnlog_debug("Association entry: ");
         print_client_req_entry(DAWNLOG_DEBUG, assoc_req);
 

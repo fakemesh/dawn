@@ -135,7 +135,10 @@ int parse_to_hostapd_notify(struct blob_attr* msg, hostapd_notify_entry* notify_
 
     dawnlog_debug_func("Entering...");
 
-    blobmsg_parse(hostapd_notify_policy, __HOSTAPD_NOTIFY_MAX, tb, blob_data(msg), blob_len(msg));
+    if (!msg || !notify_req ||
+        blobmsg_parse(hostapd_notify_policy, __HOSTAPD_NOTIFY_MAX, tb, blob_data(msg), blob_len(msg)) ||
+        !tb[HOSTAPD_NOTIFY_BSSID_ADDR] || !tb[HOSTAPD_NOTIFY_CLIENT_ADDR])
+        return UBUS_STATUS_INVALID_ARGUMENT;
 
     if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid_addr.u8))
         return UBUS_STATUS_INVALID_ARGUMENT;
@@ -151,14 +154,17 @@ probe_entry *parse_to_probe_req(struct blob_attr* msg) {
 
     dawnlog_debug_func("Entering...");
 
+    if (!msg ||
+        blobmsg_parse(prob_policy, __PROB_MAX, tb, blob_data(msg), blob_len(msg)) ||
+        !tb[PROB_BSSID_ADDR] || !tb[PROB_CLIENT_ADDR] || !tb[PROB_TARGET_ADDR])
+        return NULL;
+
     probe_entry* prob_req = dawn_malloc(sizeof(probe_entry));
     if (prob_req == NULL)
     {
         dawnlog_error("dawn_malloc of probe_entry failed!\n");
         return NULL;
     }
-
-    blobmsg_parse(prob_policy, __PROB_MAX, tb, blob_data(msg), blob_len(msg));
 
     if (hwaddr_aton(blobmsg_data(tb[PROB_BSSID_ADDR]), prob_req->bssid_addr.u8))
     {
@@ -232,7 +238,8 @@ int handle_deauth_req(struct blob_attr* msg) {
     dawnlog_debug_func("Entering...");
 
     hostapd_notify_entry notify_req;
-    parse_to_hostapd_notify(msg, &notify_req);
+    if (parse_to_hostapd_notify(msg, &notify_req))
+        return UBUS_STATUS_INVALID_ARGUMENT;
 
     dawn_mutex_lock(&client_array_mutex);
 
@@ -250,7 +257,8 @@ static int handle_set_probe(struct blob_attr* msg) {
     dawnlog_debug_func("Entering...");
 
     hostapd_notify_entry notify_req;
-    parse_to_hostapd_notify(msg, &notify_req);
+    if (parse_to_hostapd_notify(msg, &notify_req))
+        return UBUS_STATUS_INVALID_ARGUMENT;
 
     probe_array_set_all_probe_count(notify_req.client_addr, dawn_metric.min_probe_count);
 
