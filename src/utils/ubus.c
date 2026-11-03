@@ -327,7 +327,7 @@ static int get_freq(int band) {
     165, 5825
     };
 
-    for (int pos = 0; pos < (sizeof(band_freq_map) / (2 * sizeof(int))); pos += 2)
+    for (int pos = 0; pos < (sizeof(band_freq_map) / sizeof(int)); pos += 2)
     {
         if (band <= band_freq_map[pos])
             return band_freq_map[pos + 1];
