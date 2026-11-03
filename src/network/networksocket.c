@@ -75,8 +75,10 @@ static void* receive_msg_inner(void* args, bool is_enc) {
         }
 
         if (recv_string_len == 0) {
-            return 0;
+            continue;
         }
+
+        recv_string[recv_string_len] = '\0';
 
         char* final_msg = NULL;
         if (!is_enc)
@@ -92,15 +94,20 @@ static void* receive_msg_inner(void* args, bool is_enc) {
                 return 0;
             }
 
-            size_t gcrypt_len = b64_decode(recv_string, gcrypt_buf, gcrypt_max_len);
+            int gcrypt_len = b64_decode(recv_string, gcrypt_buf, gcrypt_max_len);
+            if (gcrypt_len < 0) {
+                dawnlog_warning("Ignoring invalid base64 datagram\n");
+                dawn_free(gcrypt_buf);
+                continue;
+            }
             final_msg = gcrypt_decrypt_msg(gcrypt_buf, gcrypt_len);
 
             dawn_free(gcrypt_buf);
             gcrypt_buf = NULL;
 
             if (!final_msg) {
-                dawnlog_error("Received network error: not enough memory\n");
-                return 0;
+                dawnlog_warning("Ignoring datagram after decryption failure\n");
+                continue;
             }
         }
 
