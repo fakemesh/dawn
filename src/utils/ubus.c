@@ -1877,8 +1877,10 @@ const static char* get_rrm_mode_string(int *rrm_mode_order) {
 
     dawnlog_debug_func("Entering...");
 
-    for (int n = 0; n < __RRM_BEACON_RQST_MODE_MAX && rrm_mode_order[n]; n++)
+    int n;
+    for (n = 0; n < __RRM_BEACON_RQST_MODE_MAX && rrm_mode_order[n]; n++)
         rrm_mode_string[n] = get_rrm_mode_char(rrm_mode_order[n]);
+    rrm_mode_string[n] = '\0';
     return rrm_mode_string;
 }
 
