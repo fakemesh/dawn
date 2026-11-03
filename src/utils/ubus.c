@@ -2147,6 +2147,10 @@ int build_network_overview(struct blob_buf *b) {
     bool add_ssid = true;
     dawn_mutex_require(&ap_array_mutex);
     for (ap* m = ap_set; m != NULL; m = m->next_ap) {
+        /* An unknown SSID would create an unnamed object and invalid JSON. */
+        if (m->ssid[0] == '\0')
+            continue;
+
         if(add_ssid)
         {
             ssid_list = blobmsg_open_table(b, (char *) m->ssid);
