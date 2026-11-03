@@ -1344,6 +1344,8 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, struct
     return 0;
 }
 
+static int umdns_need_reload = 0;
+
 static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *msg) {
     struct blob_attr *tb[__DAWN_UMDNS_TABLE_MAX];
 
@@ -1352,7 +1354,7 @@ static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *
     if (!msg)
         return;
 
-    blobmsg_parse(dawn_umdns_table_policy, __DAWN_UMDNS_MAX, tb, blob_data(msg), blob_len(msg));
+    blobmsg_parse(dawn_umdns_table_policy, __DAWN_UMDNS_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
 
     if (!tb[DAWN_UMDNS_TABLE]) {
         return;
@@ -1374,8 +1376,21 @@ static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *
         if (tb_dawn[DAWN_UMDNS_IPV4] && tb_dawn[DAWN_UMDNS_PORT]) {
             dawnlog_debug("IPV4: %s\n", blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]));
             dawnlog_debug("Port: %d\n", blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
+            struct blob_attr *field;
+            int rem;
+            blobmsg_for_each_attr(field, attr, rem) {
+                if (blobmsg_type(field) == BLOBMSG_TYPE_STRING &&
+                    strcmp(blobmsg_name(field), "ipv4") == 0 &&
+                    field != tb_dawn[DAWN_UMDNS_IPV4]) {
+                    umdns_need_reload = 1;
+                    break;
+                }
+            }
         } else {
-            return; // TODO: We're in a loop. Should this be return or continue?
+            if (!tb_dawn[DAWN_UMDNS_IPV4] && tb_dawn[DAWN_UMDNS_PORT]) {
+                umdns_need_reload = 1;
+            }
+            continue;
         }
         add_tcp_connection(blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]), blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
     }
@@ -1399,6 +1414,11 @@ int ubus_call_umdns() {
     ubus_invoke(ctx, id, "browse", b.head, ubus_umdns_cb, NULL, timeout * 1000);
     blob_buf_free(&b);
     dawn_unregmem(&b);
+
+    if (umdns_need_reload == 1) {
+        umdns_need_reload = 0;
+        system("/etc/init.d/umdns reload");
+    }
 
     return 0;
 }
