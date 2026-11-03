@@ -706,6 +706,14 @@ static const struct blobmsg_policy uci_metric_policy[__UCI_METRIC_MAX] = {
         [UCI_BAND_METRICS] = {.name = "band_metrics", .type = BLOBMSG_TYPE_TABLE},
 };
 
+static const struct blobmsg_policy uci_disassoc_nr_policy = {
+    .name = "disassoc_nr_length", .type = BLOBMSG_TYPE_INT32
+};
+
+static const struct blobmsg_policy uci_ap_weight_policy = {
+    .name = "ap_weight", .type = BLOBMSG_TYPE_INT32
+};
+
 static const struct blobmsg_policy uci_band_metric_policy[__UCI_METRIC_MAX] = {
         [UCI_INITIAL_SCORE] = {.name = "initial_score", .type = BLOBMSG_TYPE_INT32},
         [UCI_HT_SUPPORT] = {.name = "ht_support", .type = BLOBMSG_TYPE_INT32},
@@ -753,12 +761,27 @@ static void set_uci_item(char* m, struct blob_attr* a)
     }
 }
 
+static bool parse_required_table(const struct blobmsg_policy *policy, int count,
+                                struct blob_attr **tb, struct blob_attr *table) {
+    if (!table || blobmsg_type(table) != BLOBMSG_TYPE_TABLE ||
+        blobmsg_parse(policy, count, tb, blobmsg_data(table), blobmsg_data_len(table)))
+        return false;
+
+    for (int i = 0; i < count; i++)
+        if (policy[i].name && !tb[i])
+            return false;
+
+    return true;
+}
+
 static int handle_uci_config(struct blob_attr* msg) {
 
     dawnlog_debug_func("Entering...");
 
     struct blob_attr* tb[__UCI_TABLE_MAX];
-    blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
+    if (!msg || blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(msg), blob_len(msg)) ||
+        !tb[UCI_CONFIG_VERSION] || !tb[UCI_TABLE_METRIC] || !tb[UCI_TABLE_TIMES])
+        return -1;
 
     const char *version_string = blobmsg_get_string(tb[UCI_CONFIG_VERSION]);
     if (version_string == NULL || strcmp(version_string, DAWN_CONFIG_VERSION)) {
@@ -768,7 +791,22 @@ static int handle_uci_config(struct blob_attr* msg) {
     }
 
     struct blob_attr* tb_metric[__UCI_METRIC_MAX];
-    blobmsg_parse(uci_metric_policy, __UCI_METRIC_MAX, tb_metric, blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_len(tb[UCI_TABLE_METRIC]));
+    if (!parse_required_table(uci_metric_policy, __UCI_METRIC_MAX, tb_metric, tb[UCI_TABLE_METRIC]) ||
+        blobmsg_data_len(tb_metric[UCI_RRM_MODE]) > __RRM_BEACON_RQST_MODE_MAX + 1)
+        return -1;
+
+    struct blob_attr *disassoc_nr_length;
+    blobmsg_parse(&uci_disassoc_nr_policy, 1, &disassoc_nr_length,
+                  blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_data_len(tb[UCI_TABLE_METRIC]));
+
+    /* Validate every band before the first persistent configuration write. */
+    struct blob_attr *band_attr;
+    int rem;
+    blobmsg_for_each_attr(band_attr, tb_metric[UCI_BAND_METRICS], rem) {
+        struct blob_attr *band_tb[__UCI_BAND_METRIC_MAX];
+        if (!parse_required_table(uci_band_metric_policy, __UCI_BAND_METRIC_MAX, band_tb, band_attr))
+            return -1;
+    }
 
     // TODO: Magic number?
     char cmd_buffer[1024];
@@ -818,6 +856,8 @@ static int handle_uci_config(struct blob_attr* msg) {
     sprintf(cmd_buffer, "dawn.global.set_hostapd_nr=%d", blobmsg_get_u32(tb_metric[UCI_SET_HOSTAPD_NR]));
     uci_set_network(cmd_buffer);
 
+    set_uci_item("dawn.global.disassoc_nr_length=%d", disassoc_nr_length);
+
     sprintf(cmd_buffer, "dawn.global.duration=%d", blobmsg_get_u32(tb_metric[UCI_DURATION]));
     uci_set_network(cmd_buffer);
 
@@ -835,6 +875,9 @@ static int handle_uci_config(struct blob_attr* msg) {
         blobmsg_parse(uci_band_metric_policy, __UCI_BAND_METRIC_MAX, tb_band_metric,
                 blobmsg_data(attr), blobmsg_len(attr));
 
+        struct blob_attr *ap_weight;
+        blobmsg_parse(&uci_ap_weight_policy, 1, &ap_weight, blobmsg_data(attr), blobmsg_data_len(attr));
+
         for (band = 0; band < __DAWN_BAND_MAX; band++) {
             if (!strcmp(band_name, band_config_name[band]))
                 break;
@@ -849,6 +892,11 @@ static int handle_uci_config(struct blob_attr* msg) {
 
         sprintf(cmd_buffer, "dawn.%s.initial_score=%d", band_name, blobmsg_get_u32(tb_band_metric[UCI_INITIAL_SCORE]));
         uci_set_network(cmd_buffer);
+
+        if (ap_weight) {
+            sprintf(cmd_buffer, "dawn.%s.ap_weight=%d", band_name, blobmsg_get_u32(ap_weight));
+            uci_set_network(cmd_buffer);
+        }
 
         sprintf(cmd_buffer, "dawn.%s.ht_support=%d", band_name, blobmsg_get_u32(tb_band_metric[UCI_HT_SUPPORT]));
         uci_set_network(cmd_buffer);
