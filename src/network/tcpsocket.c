@@ -12,6 +12,7 @@
 #define STR_QUOTE(x) STR_EVAL(x)
 
 #define HEADER_SIZE sizeof(uint32_t)
+#define MAX_TCP_MSG_LEN (1024U * 1024U)
 #define PING_STR "ping"
 #define PONG_STR "pong"
 #define PING_SIZE (strlen(PING_STR)+1)
@@ -56,6 +57,8 @@ static void client_close(struct ustream *s) {
     dawn_unregmem(s);
     close(cl->s.fd.fd);
     list_del(&cl->list);
+    if (cl->str)
+        dawn_free(cl->str);
     dawn_free(cl);
     cl = NULL;
 }
@@ -139,14 +142,19 @@ static void client_read_cb(struct ustream *s, int bytes) {
             cl->curr_len += HEADER_SIZE;
             cl->final_len = ntohl(*(uint32_t *)cl->str);
 
+            if (cl->final_len <= HEADER_SIZE || cl->final_len > MAX_TCP_MSG_LEN) {
+                dawnlog_warning("Invalid TCP message length: %" PRIu32 "\n", cl->final_len);
+                client_close(s);
+                return;
+            }
+
             // On failure, dawn_realloc returns a null pointer. The original pointer str
             // remains valid and may need to be deallocated.
             char *str_tmp = dawn_realloc(cl->str, cl->final_len);
             if (!str_tmp) {
                 dawnlog_error("not enough memory (%" PRIu32 " @ " STR_QUOTE(__LINE__) ")\n", cl->final_len);
-                dawn_free(cl->str);
-                cl->str = NULL;
-                break;
+                client_close(s);
+                return;
             }
 
             cl->str = str_tmp;
@@ -191,15 +199,19 @@ static void client_read_cb(struct ustream *s, int bytes) {
             if (network_config.use_symm_enc) {
                 char *dec = gcrypt_decrypt_msg(cl->str + HEADER_SIZE, cl->final_len - HEADER_SIZE);//len of str is final_len
                 if (!dec) {
-                    dawnlog_error("not enough memory (" STR_QUOTE(__LINE__) ")\n");
-                    dawn_free(cl->str);
-                    cl->str = NULL;
-                    break;
+                    dawnlog_warning("Closing TCP client after decryption failure\n");
+                    client_close(s);
+                    return;
                 }
                 handle_network_msg(dec);
                 dawn_free(dec);
                 dec = NULL;
             } else {
+                if (cl->str[cl->final_len - 1] != '\0') {
+                    dawnlog_warning("TCP message is not NUL terminated\n");
+                    client_close(s);
+                    return;
+                }
                 handle_network_msg(cl->str + HEADER_SIZE);//len of str is final_len
             }
 
