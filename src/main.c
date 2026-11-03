@@ -32,8 +32,7 @@ void daemon_shutdown() {
 void signal_handler(int sig) {
     switch (sig) {
         case SIGHUP:
-            //daemon_shutdown();
-            dawn_memory_audit();
+            dawn_request_memory_audit();
             break;
         case SIGINT:
             daemon_shutdown();

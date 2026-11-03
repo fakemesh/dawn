@@ -26,6 +26,9 @@
  */
 int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir);
 
+/** Queue a memory audit for the event loop; safe to call from a signal handler. */
+void dawn_request_memory_audit(void);
+
 /**
  * Start the umdns timer for updating the zeroconfiguration properties.
  */

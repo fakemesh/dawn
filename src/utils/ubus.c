@@ -1,4 +1,6 @@
 #include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <libubus.h>
 
 #include "memory_utils.h"
@@ -18,6 +20,76 @@
 
 
 static struct ubus_context *ctx = NULL;
+
+static volatile sig_atomic_t memory_audit_write_fd = -1;
+static struct uloop_fd memory_audit_fd = { .fd = -1 };
+
+void dawn_request_memory_audit(void) {
+    int saved_errno = errno;
+    int fd = memory_audit_write_fd;
+
+    if (fd >= 0) {
+        ssize_t ret;
+        do {
+            ret = write(fd, "a", 1);
+        } while (ret < 0 && errno == EINTR);
+        /* A full pipe already contains a pending audit request. */
+    }
+
+    errno = saved_errno;
+}
+
+static void memory_audit_cb(struct uloop_fd *fd, unsigned int events) {
+    char requests[64];
+    ssize_t len;
+    bool requested = false;
+
+    do {
+        len = read(fd->fd, requests, sizeof(requests));
+        if (len > 0)
+            requested = true;
+    } while (len > 0 || (len < 0 && errno == EINTR));
+
+    if (requested)
+        dawn_memory_audit();
+}
+
+static int init_memory_audit(void) {
+    int fds[2];
+
+    if (pipe(fds) < 0)
+        return -1;
+
+    for (int i = 0; i < 2; i++) {
+        if (fcntl(fds[i], F_SETFD, FD_CLOEXEC) < 0 ||
+            fcntl(fds[i], F_SETFL, O_NONBLOCK) < 0)
+            goto error;
+    }
+
+    memory_audit_fd.cb = memory_audit_cb;
+    memory_audit_fd.fd = fds[0];
+    if (uloop_fd_add(&memory_audit_fd, ULOOP_READ) < 0) {
+        memory_audit_fd.fd = -1;
+        goto error;
+    }
+
+    memory_audit_write_fd = fds[1];
+    return 0;
+
+error:
+    close(fds[0]);
+    close(fds[1]);
+    return -1;
+}
+
+static void close_memory_audit(void) {
+    int fd = memory_audit_write_fd;
+    memory_audit_write_fd = -1;
+    uloop_fd_delete(&memory_audit_fd);
+    close(memory_audit_fd.fd);
+    memory_audit_fd.fd = -1;
+    close(fd);
+}
 
 void update_clients(struct uloop_timeout *t);
 
@@ -790,9 +862,17 @@ int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir) {
     uloop_init();
     signal(SIGPIPE, SIG_IGN);
 
+    if (init_memory_audit() < 0) {
+        dawnlog_error("Failed to initialize memory audit requests\n");
+        uloop_done();
+        return -1;
+    }
+
     ctx = ubus_connect(ubus_socket);
     if (!ctx) {
         dawnlog_error("Failed to connect to ubus\n");
+        close_memory_audit();
+        uloop_done();
         return -1;
     } else {
         dawnlog_debug("Connected to ubus\n");
@@ -832,6 +912,7 @@ int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir) {
 
     uloop_run();
 
+    close_memory_audit();
     close_socket();
 
     ubus_free(ctx);
