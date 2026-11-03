@@ -972,6 +972,9 @@ static void ubus_get_rrm_cb(struct ubus_request *req, int type, struct blob_attr
         }
     }
 
+    if (!entry)
+        return;
+
     blobmsg_parse(rrm_array_policy, __RRM_MAX, tb, blob_data(msg), blob_len(msg));
 
     if (!tb[RRM_ARRAY]) {
@@ -986,9 +989,13 @@ static void ubus_get_rrm_cb(struct ubus_request *req, int type, struct blob_attr
      {
          if(i==2)
          {
-            char* neighborreport = blobmsg_get_string(attr);
-            strcpy(entry->neighbor_report,neighborreport);
+            if (blobmsg_type(attr) != BLOBMSG_TYPE_STRING)
+                break;
+
+            const char *neighborreport = blobmsg_get_string(attr);
+            snprintf(entry->neighbor_report, sizeof(entry->neighbor_report), "%s", neighborreport);
             dawnlog_debug("Copied Neighborreport: %s,\n", entry->neighbor_report);
+            break;
          }
          i++;
      }
