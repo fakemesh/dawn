@@ -283,40 +283,38 @@ static void client_ping_read_cb(struct ustream *s, int bytes) {
 
     dawnlog_debug_func("Entering...");
 
-    len = ustream_read(s, buf, ping_len);
+    /* TCP may split one ping or coalesce several pings into a single read. */
+    while (ustream_pending_data(s, false) >= ping_len) {
+        len = ustream_read(s, buf, ping_len);
 
-    /* client received ping, send pong back to server */
-    if (len == ping_len && ntohl(*(uint32_t *)buf) == ping_len && memcmp(buf + HEADER_SIZE, PING_STR, PING_SIZE) == 0) {
-        struct network_con_s *con = container_of(s, struct network_con_s, stream.stream);
-        int len_ustream;
-        const char *msg = PONG_STR;
-        size_t msglen = PONG_SIZE;
-        uint32_t final_len = msglen + HEADER_SIZE;
-        char final_str[HEADER_SIZE + PONG_SIZE];
-        uint32_t *msg_header = (uint32_t *)final_str;
+        /* client received ping, send pong back to server */
+        if (len == ping_len && ntohl(*(uint32_t *)buf) == ping_len && memcmp(buf + HEADER_SIZE, PING_STR, PING_SIZE) == 0) {
+            struct network_con_s *con = container_of(s, struct network_con_s, stream.stream);
+            int len_ustream;
+            const char *msg = PONG_STR;
+            size_t msglen = PONG_SIZE;
+            uint32_t final_len = msglen + HEADER_SIZE;
+            char final_str[HEADER_SIZE + PONG_SIZE];
+            uint32_t *msg_header = (uint32_t *)final_str;
 
-        dawnlog_info("Client: received ping from %s:%u, now=%d\n", inet_ntoa(con->sock_addr.sin_addr), ntohs(con->sock_addr.sin_port), (int)time(0));
-        con->time_alive = time(0);
+            dawnlog_info("Client: received ping from %s:%u, now=%d\n", inet_ntoa(con->sock_addr.sin_addr), ntohs(con->sock_addr.sin_port), (int)time(0));
+            con->time_alive = time(0);
 
-        *msg_header = htonl(final_len);
-        memcpy(final_str + HEADER_SIZE, msg, msglen);
-        len_ustream = ustream_write(&con->stream.stream, final_str, final_len, 0);
-        if (len_ustream <= 0) {
-            dawnlog_error("Ustream error(" STR_QUOTE(__LINE__) ")!\n");
-            //ERROR HANDLING!
-            if (con->stream.stream.write_error) {
-                ustream_free(&con->stream.stream);
-                dawn_unregmem(&con->stream.stream);
-                close(con->fd.fd);
-                list_del(&con->list);
-                dawn_free(con);
-                con = NULL;
+            *msg_header = htonl(final_len);
+            memcpy(final_str + HEADER_SIZE, msg, msglen);
+            len_ustream = ustream_write(&con->stream.stream, final_str, final_len, 0);
+            if (len_ustream <= 0) {
+                dawnlog_error("Ustream error(" STR_QUOTE(__LINE__) ")!\n");
+                if (con->stream.stream.write_error) {
+                    client_to_server_close(s);
+                    return;
+                }
             }
-        }
 
-    } else {
-        buf[len] = 0;
-        dawnlog_error("Read %d bytes upexpected: %s\n", len, buf);
+        } else {
+            buf[len] = 0;
+            dawnlog_error("Read %d bytes upexpected: %s\n", len, buf);
+        }
     }
 
 }
