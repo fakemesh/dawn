@@ -20,6 +20,7 @@ struct mem_list {
 
 static struct mem_list* mem_base = NULL;
 static uint64_t alloc_ref = 0;
+static pthread_mutex_t mem_audit_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void* dawn_memory_alloc(enum dawn_memop type, char* file, int line, size_t nmemb, size_t size, void *ptr)
 {
@@ -97,9 +98,11 @@ void* dawn_memory_register(enum dawn_memop type, char* file, int line, size_t si
         return ret;
     }
 
+    pthread_mutex_lock(&mem_audit_mutex);
+
     // Insert to linked list with ascending memory reference
     struct mem_list** ipos = &mem_base;
-    while (*ipos != NULL && (*ipos)->ptr < ptr)
+    while (*ipos != NULL && (uintptr_t)(*ipos)->ptr < (uintptr_t)ptr)
         ipos = &((*ipos)->next_mem);
 
     if (*ipos != NULL && (*ipos)->ptr == ptr)
@@ -138,19 +141,22 @@ void* dawn_memory_register(enum dawn_memop type, char* file, int line, size_t si
         }
     }
 
+    pthread_mutex_unlock(&mem_audit_mutex);
+
     return ret;
 }
 
 void dawn_memory_unregister(enum dawn_memop type, char* file, int line, void* ptr)
 {
 struct mem_list** mem = &mem_base;
+    char* xfile = strrchr(file, '/');
 
-    while (*mem != NULL && (*mem)->ptr < ptr)
+    pthread_mutex_lock(&mem_audit_mutex);
+
+    while (*mem != NULL && (uintptr_t)(*mem)->ptr < (uintptr_t)ptr)
     {
         mem = &((*mem)->next_mem);
     }
-
-    char* xfile = strrchr(file, '/');
 
     if (*mem != NULL && (*mem)->ptr == ptr)
     {
@@ -165,6 +171,8 @@ struct mem_list** mem = &mem_base;
     {
         dawnlog_warning("mem-audit: Releasing memory we hadn't registered (%s:%d)...\n", xfile ? xfile + 1 : file, line);
     }
+
+    pthread_mutex_unlock(&mem_audit_mutex);
 
     return;
 }
@@ -183,11 +191,13 @@ void dawn_memory_audit()
 size_t    total = 0;
 
     dawnlog_always("mem-audit: Currently recorded allocations...\n");
+    pthread_mutex_lock(&mem_audit_mutex);
     for (struct mem_list* mem = mem_base; mem != NULL; mem = mem->next_mem)
     {
         dawnlog_always("mem-audit: %8" PRIu64 "=%c - %s@%d: %zu\n", mem->ref, mem->type, mem->file, mem->line, mem->size);
         total += mem->size;
     }
+    pthread_mutex_unlock(&mem_audit_mutex);
 
     char *suffix = "bytes";
     if (total > 128 * 1024)
