@@ -670,6 +670,7 @@ static int handle_beacon_rep(struct blob_attr *msg) {
                 dawn_mutex_require(&probe_array_mutex);
             }
 
+            ubus_send_probe_via_network(entry_updated, true);
             dawn_mutex_unlock(&probe_array_mutex);
 
             ret = 0;

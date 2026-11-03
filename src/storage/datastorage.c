@@ -999,7 +999,9 @@ probe_entry* insert_to_probe_array(probe_entry* entry, int inc_probe_count, int 
     {
         dawnlog_debug("Adding...\n");
 
-        if (inc_probe_count && !is_beacon)
+        if (is_beacon)
+            entry->counter = dawn_metric.min_probe_count;
+        else if (inc_probe_count)
             entry->counter = 1;
         else
             entry->counter = 0;

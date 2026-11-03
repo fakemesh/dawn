@@ -311,13 +311,14 @@ int handle_network_msg(char* msg) {
     // add inactive death...
 
 // TODO: strncmp() look wrong - should all tests be for n = 5 characters? Shorthand checks?
-    if (strncmp(method, "probe", 5) == 0) {
+    bool is_beacon = strcmp(method, "beacon-report") == 0;
+    if (strncmp(method, "probe", 5) == 0 || is_beacon) {
         probe_entry *entry = parse_to_probe_req(data_buf.head);
         if (entry != NULL) {
             dawn_mutex_lock(&probe_array_mutex);
 
             dawn_mutex_require(&probe_array_mutex);
-            if (entry != insert_to_probe_array(entry, false, false, time(0)))
+            if (entry != insert_to_probe_array(entry, false, is_beacon, time(0)))
             {
                 // insert found an existing entry, rather than linking in our new one
                 dawnlog_info("Remote PROBE updated client / BSSID = " MACSTR " / " MACSTR " \n",
