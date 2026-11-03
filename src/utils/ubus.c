@@ -751,6 +751,10 @@ static int hostapd_notify(struct ubus_context* ctx_local, struct ubus_object* ob
     subscriber = container_of(obj, struct ubus_subscriber, obj);
     entry = container_of(subscriber, struct hostapd_sock_entry, subscriber);
 
+    /* Notifications already queued before an unsubscribe must be ignored. */
+    if (!entry->subscribed)
+        return WLAN_STATUS_SUCCESS;
+
     struct blob_attr *cur; int rem;
     blob_buf_init(&b, 0);
     dawn_regmem(&b);
@@ -1580,6 +1584,7 @@ static int reload_config(struct ubus_context *ctx_local, struct ubus_object *obj
     timeout_config = uci_get_time_config();
     uci_get_dawn_hostapd_dir();
     uci_get_dawn_steering_ssids();
+    subscribe_to_new_interfaces(hostapd_dir_glob);
 
     if(timeout_config.update_beacon_reports) // allow setting timeout to 0
         uloop_timeout_add(&beacon_reports_timer); // callback = update_beacon_reports
@@ -1724,6 +1729,13 @@ bool subscribe(struct ubus_context *ctx_local, struct hostapd_sock_entry *hostap
     if (hostapd_entry->subscribed)
         return false;
 
+    char ssid[SSID_MAX_LEN + 1] = {0};
+    get_ssid(hostapd_entry->iface_name, ssid, SSID_MAX_LEN);
+    if (ssid[0])
+        memcpy(hostapd_entry->ssid, ssid, sizeof(ssid));
+    if (hostapd_entry->ssid[0] && !dawn_ssid_is_managed(hostapd_entry->ssid))
+        return false;
+
     sprintf(subscribe_name, "hostapd.%s", hostapd_entry->iface_name);
 
     if (ubus_lookup_id(ctx_local, subscribe_name, &hostapd_entry->id)) {
@@ -1741,8 +1753,6 @@ bool subscribe(struct ubus_context *ctx_local, struct hostapd_sock_entry *hostap
     hostapd_entry->subscribed = true;
 
     get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid_addr.u8);
-    get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, (SSID_MAX_LEN) * sizeof(char));
-    hostapd_entry->ssid[SSID_MAX_LEN] = '\0';
 
     hostapd_entry->ht_support = (uint8_t) support_ht(hostapd_entry->iface_name);
     hostapd_entry->vht_support = (uint8_t) support_vht(hostapd_entry->iface_name);
@@ -1829,6 +1839,17 @@ void subscribe_to_new_interfaces(const char *hostapd_sock_path) {
         return;
     }
 
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (!sub->subscribed || !sub->ssid[0] || dawn_ssid_is_managed(sub->ssid))
+            continue;
+
+        /* Keep the subscriber object so it can be reused if allowed again. */
+        sub->subscribed = false;
+        int ret = ubus_unsubscribe(ctx, &sub->subscriber, sub->id);
+        if (ret)
+            dawnlog_warning("Failed to unsubscribe %s: %s\n", sub->iface_name, ubus_strerror(ret));
+    }
+
     dirp = opendir(hostapd_sock_path);  // error handling?
     if (!dirp) {
         dawnlog_error("[SUBSCRIBING] No hostapd sockets!\n");
@@ -1840,12 +1861,19 @@ void subscribe_to_new_interfaces(const char *hostapd_sock_path) {
             bool do_subscribe = true;
             if (strcmp(entry->d_name, "global") == 0)
                 continue;
+
+            struct hostapd_sock_entry *existing = NULL;
             list_for_each_entry(sub, &hostapd_sock_list, list)
             {
                 if (strncmp(sub->iface_name, entry->d_name, MAX_INTERFACE_NAME) == 0) {
-                    do_subscribe = false;
+                    existing = sub;
                     break;
                 }
+            }
+            if (existing) {
+                if (!existing->subscribed)
+                    subscribe(ctx, existing);
+                continue;
             }
             // Honour the optional steering_ssid allow-list: if we can read the
             // BSS's SSID and it is not permitted, leave the interface entirely
