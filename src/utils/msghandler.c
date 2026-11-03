@@ -424,7 +424,7 @@ dump_client(struct blob_attr** tb, struct dawn_mac client_addr, const char* bssi
         client_entry->aid = blobmsg_get_u32(tb[CLIENT_AID]);
     }
     /* RRM Caps */
-    if (tb[CLIENT_RRM]) {
+    if (tb[CLIENT_RRM] && blobmsg_check_array(tb[CLIENT_RRM], BLOBMSG_TYPE_INT32) > 0) {
         // get the first byte from rrm array
         client_entry->rrm_enabled_capa = dump_rrm_data(blobmsg_data(tb[CLIENT_RRM]));
 //ap_entry.ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_RRM]);
@@ -436,7 +436,8 @@ dump_client(struct blob_attr** tb, struct dawn_mac client_addr, const char* bssi
 
     // copy signature
     if (tb[CLIENT_SIGNATURE]) {
-        strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN * sizeof(char));
+        snprintf(client_entry->signature, sizeof(client_entry->signature), "%s",
+                 blobmsg_get_string(tb[CLIENT_SIGNATURE]));
     }
     else
     {
@@ -497,12 +498,17 @@ int parse_to_clients(struct blob_attr* msg) {
 
     blobmsg_parse(client_table_policy, __CLIENT_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
 
+    if (tb[CLIENT_TABLE_SSID] &&
+        blobmsg_data_len(tb[CLIENT_TABLE_SSID]) > SSID_MAX_LEN + 1)
+        return UBUS_STATUS_INVALID_ARGUMENT;
+
     // Get clients
     if (tb[CLIENT_TABLE] && tb[CLIENT_TABLE_BSSID] && tb[CLIENT_TABLE_FREQ]) {
         int num_stations = 0;
         num_stations = dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
             blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
-            blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
+            tb[CLIENT_TABLE_HT] ? blobmsg_get_u8(tb[CLIENT_TABLE_HT]) : 0,
+            tb[CLIENT_TABLE_VHT] ? blobmsg_get_u8(tb[CLIENT_TABLE_VHT]) : 0);
 
         // Get AP
         ap *ap_entry = dawn_malloc(sizeof(struct ap_s));
@@ -533,7 +539,11 @@ int parse_to_clients(struct blob_attr* msg) {
         }
 
         if (tb[CLIENT_TABLE_SSID]) {
-            strcpy((char*)ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
+            memcpy(ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]),
+                   blobmsg_data_len(tb[CLIENT_TABLE_SSID]));
+        }
+        else {
+            ap_entry->ssid[0] = '\0';
         }
 #if 0 // Pending deletion if no longer required
         if (tb[CLIENT_TABLE_COL_DOMAIN]) {
@@ -578,14 +588,16 @@ int parse_to_clients(struct blob_attr* msg) {
         }
 
         if (tb[CLIENT_TABLE_IFACE]) {
-            strncpy(ap_entry->iface, blobmsg_get_string(tb[CLIENT_TABLE_IFACE]), MAX_INTERFACE_NAME);
+            snprintf(ap_entry->iface, sizeof(ap_entry->iface), "%s",
+                     blobmsg_get_string(tb[CLIENT_TABLE_IFACE]));
         }
         else {
             ap_entry->iface[0] = '\0';
         }
 
         if (tb[CLIENT_TABLE_HOSTNAME]) {
-            strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
+            snprintf(ap_entry->hostname, sizeof(ap_entry->hostname), "%s",
+                     blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]));
         }
         else {
             ap_entry->hostname[0] = '\0';
