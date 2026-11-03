@@ -2337,11 +2337,10 @@ void ubus_set_nr_from_clients(struct kicking_nr *ap_list) {
     struct hostapd_sock_entry* sub;
     int timeout = 1;
 
-    int has_content = 0;
-
     list_for_each_entry(sub, &hostapd_sock_list, list)
     {
         if (sub->subscribed) {
+            int has_content = 0;
             struct blob_buf b = { 0 };
             blob_buf_init(&b, 0);
             dawn_regmem(&b);
