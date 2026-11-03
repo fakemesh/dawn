@@ -1365,7 +1365,7 @@ struct mac_entry_s *insert_to_maclist(struct dawn_mac mac) {
 
     if (mac_find_entry(mac) == NULL)
     {
-        struct mac_entry_s* new_mac = dawn_malloc(sizeof(struct mac_entry_s));
+        new_mac = dawn_malloc(sizeof(struct mac_entry_s));
         if (new_mac == NULL)
         {
             dawnlog_error("malloc of MAC struct failed!\n");
