@@ -203,13 +203,13 @@ static int array_auto_helper(int action, int i0, int i1)
             ; // Empty statement to allow label before declaration
             if ((action & HELPER_ACTION_MASK) == HELPER_ACTION_ADD)
             {
-                ap* ap0 = dawn_malloc(sizeof(struct ap_s));
+                ap* ap0 = dawn_calloc(1, sizeof(struct ap_s));
                 ap0->bssid_addr = this_mac;
 
                 insert_to_ap_array(ap0, 0);
             }
             else if ((action & HELPER_ACTION_MASK) == HELPER_ACTION_STRESS) {
-                ap* ap0 = dawn_malloc(sizeof(struct ap_s));
+                ap* ap0 = dawn_calloc(1, sizeof(struct ap_s));
                 set_random_mac(ap0->bssid_addr.u8);
 
                 insert_to_ap_array(ap0, faketime);
@@ -692,7 +692,7 @@ static int consume_actions(int argc, char* argv[], int harness_verbosity)
         }
         else if (strcmp(*argv, "ap") == 0)
         {
-            ap *ap0 = dawn_malloc(sizeof(struct ap_s));
+            ap *ap0 = dawn_calloc(1, sizeof(struct ap_s));
 
             ap0->freq = 0;
             ap0->ht_support = 0;
