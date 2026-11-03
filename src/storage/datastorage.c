@@ -951,7 +951,7 @@ probe_entry* insert_to_probe_array(probe_entry* entry, int inc_probe_count, int 
             if (inc_probe_count)
                 (*node_ref)->counter++;
 
-            entry->rssi_timestamp = expiry;
+            (*node_ref)->rssi_timestamp = expiry;
 
             // BEACON reports don't have these fields, so only update them from PROBE
             (*node_ref)->signal = entry->signal;
@@ -968,7 +968,7 @@ probe_entry* insert_to_probe_array(probe_entry* entry, int inc_probe_count, int 
             // FIXME: Equivalent to inserting BEACON based entry
             (*node_ref)->counter = dawn_metric.min_probe_count;
 
-            entry->rcpi_timestamp = expiry;
+            (*node_ref)->rcpi_timestamp = expiry;
 
             // PROBE reports don't have these fields, so only update them from BEACOM
             if (entry->rcpi != -1)
@@ -1198,10 +1198,12 @@ void remove_old_probe_entries(time_t current_time, long long int threshold) {
             probe_entry* victim = *i;
 
             *i = victim->next_probe;
+            probe_set.node_count--;
 
             if (*s == victim)
             {
                 *s = victim->next_probe_skip;
+                probe_set.skip_count--;
             }
 
             dawn_free(victim);
