@@ -51,7 +51,10 @@ int main(int argc, char **argv) {
     const char *ubus_socket = NULL;
 
     /* Load local config now so command line can override it */
-    uci_init();
+    if (uci_init() < 0) {
+        fprintf(stderr, "dawn: failed to load UCI configuration\n");
+        return EXIT_FAILURE;
+    }
     local_config = uci_get_local_config();
 
     int logdest = DAWNLOG_DEST_SYSLOG;

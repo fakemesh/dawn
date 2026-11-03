@@ -29,7 +29,7 @@ RestrictSUIDSGID=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
 SystemCallArchitectures=native
-ReadOnlyPaths=/etc/dawn /run/ubus/ubus.sock
+ReadOnlyPaths=/run/ubus/ubus.sock
 ReadWritePaths=/var/lib/dawn
 
 [Install]

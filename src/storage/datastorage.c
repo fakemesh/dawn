@@ -1322,8 +1322,8 @@ void insert_macs_from_file() {
     fp = fopen("/tmp/dawn_mac_list", "r");
     if (fp == NULL)
     {
-        dawnlog_error("Failed opening MAC list file - quitting!\n");
-        exit(EXIT_FAILURE);
+        dawnlog_debug("No MAC whitelist file found; continuing with an empty list\n");
+        return;
     }
 
     dawn_regmem(fp);

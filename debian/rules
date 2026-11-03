@@ -6,8 +6,11 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 override_dh_auto_configure:
 	dh_auto_configure -- \
-	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	  -DDAWN_DEFAULT_CONFIG_DIR=/etc/dawn
+	  -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+override_dh_auto_install:
+	dh_auto_install
+	install -D -m 0644 dawn-config debian/dawn/etc/config/dawn
 
 override_dh_installsystemd:
 	dh_installsystemd --name=dawn --no-enable --no-start

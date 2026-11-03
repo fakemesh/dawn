@@ -11,16 +11,8 @@ case "$1" in
         --disabled-login --shell /usr/sbin/nologin dawn
     fi
 
-    # Ensure dirs exist with right perms
+    # Ensure the state directory exists with the correct ownership.
     install -d -o dawn -g dawn -m 0750 /var/lib/dawn
-    install -d -o root -g dawn -m 0750 /etc/dawn
-
-    # Drop a minimal config if none exists yet
-    if [ ! -e /etc/dawn/dawn.json ] && [ -f /usr/share/doc/dawn/examples/dawn.json.example ]; then
-      cp /usr/share/doc/dawn/examples/dawn.json.example /etc/dawn/dawn.json
-      chown root:dawn /etc/dawn/dawn.json
-      chmod 0640 /etc/dawn/dawn.json
-    fi
 
     # Register tmpfiles + service (don’t auto-enable on install)
     if command -v systemd-tmpfiles >/dev/null 2>&1; then

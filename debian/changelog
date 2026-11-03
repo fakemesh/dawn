@@ -1,0 +1,6 @@
+dawn (0.0.20261103) unstable; urgency=medium
+
+  * Install the UCI configuration used by the daemon and align the systemd
+    defaults with the supported command-line options.
+
+ -- Russ Dill <russ.dill@gmail.com>  Tue, 03 Nov 2026 12:22:54 +0800
