@@ -2,6 +2,7 @@
 // https://github.com/vedantk/gcrypt-example/blob/master/gcry.cc
 
 #include <gcrypt.h>
+#include <limits.h>
 
 #include "utils.h"
 #include "memory_utils.h"
@@ -63,29 +64,36 @@ void gcrypt_set_key_and_iv(const char *key, const char *iv) {
 
 // free out buffer after using!
 char *gcrypt_encrypt_msg(char *msg, size_t msg_length, int *out_length) {
-    if (0U != (msg_length & 0xfU))
-        msg_length += 0x10U - (msg_length & 0xfU);
+    if (!msg || !out_length || msg_length == 0 || msg_length > INT_MAX - 15) {
+        dawnlog_error("gcry_cipher_encrypt error: invalid message length\n");
+        return NULL;
+    }
 
-    char *out = dawn_malloc(msg_length);
+    size_t padded_length = (msg_length + 15) & ~(size_t)15;
+    char *out = dawn_calloc(1, padded_length);
     if (!out){
         dawnlog_error("gcry_cipher_encrypt error: not enough memory\n");
         return NULL;
     }
-    gcry_error_handle = gcry_cipher_encrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
+    memcpy(out, msg, msg_length);
+    gcry_error_handle = gcry_cipher_encrypt(gcry_cipher_hd, out, padded_length, NULL, 0);
     if (gcry_error_handle) {
         dawnlog_error("gcry_cipher_encrypt failed:  %s/%s\n",
                 gcry_strsource(gcry_error_handle),
                 gcry_strerror(gcry_error_handle));
+        dawn_free(out);
         return NULL;
     }
-    *out_length = msg_length;
+    *out_length = padded_length;
     return out;
 }
 
 // free out buffer after using!
 char *gcrypt_decrypt_msg(char *msg, size_t msg_length) {
-    if (0U != (msg_length & 0xfU))
-        msg_length += 0x10U - (msg_length & 0xfU);
+    if (!msg || msg_length == 0 || (msg_length & 0xfU) != 0) {
+        dawnlog_warning("gcry_cipher_decrypt: invalid ciphertext length\n");
+        return NULL;
+    }
 
     char *out_buffer = dawn_malloc(msg_length);
     if (!out_buffer){
@@ -101,16 +109,11 @@ char *gcrypt_decrypt_msg(char *msg, size_t msg_length) {
         out_buffer = NULL;
         return NULL;
     }
-    char *out = dawn_malloc(strlen(out_buffer) + 1);
-    if (!out){
+    if (!memchr(out_buffer, '\0', msg_length)) {
+        dawnlog_warning("gcry_cipher_decrypt: message is not NUL terminated\n");
         dawn_free(out_buffer);
-        out_buffer = NULL;
-        dawnlog_error("gcry_cipher_decrypt error: not enough memory\n");
         return NULL;
     }
-    strcpy(out, out_buffer);
-    dawn_free(out_buffer);
-    out_buffer = NULL;
-    return out;
+    return out_buffer;
 }
 
