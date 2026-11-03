@@ -1575,9 +1575,11 @@ static int reload_config(struct ubus_context *ctx_local, struct ubus_object *obj
     blob_buf_init(&b, 0);
     dawn_regmem(&b);
     uci_reset();
+    uci_clear_metric_neighbors();
     dawn_metric = uci_get_dawn_metric();
     timeout_config = uci_get_time_config();
     uci_get_dawn_hostapd_dir();
+    uci_get_dawn_steering_ssids();
 
     if(timeout_config.update_beacon_reports) // allow setting timeout to 0
         uloop_timeout_add(&beacon_reports_timer); // callback = update_beacon_reports

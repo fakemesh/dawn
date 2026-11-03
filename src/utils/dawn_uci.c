@@ -190,6 +190,13 @@ static void free_neighbor_mac_list(struct mac_entry_s *list) {
     }
 }
 
+void uci_clear_metric_neighbors(void) {
+    for (int band = 0; band < __DAWN_BAND_MAX; band++) {
+        free_neighbor_mac_list(dawn_metric.neighbors[band]);
+        dawn_metric.neighbors[band] = NULL;
+    }
+}
+
 static struct mac_entry_s* uci_lookup_mac_list(struct uci_option *o) {
     struct uci_element *e = NULL;
     struct mac_entry_s *head = NULL;
@@ -585,8 +592,7 @@ int uci_clear() {
     dawnlog_debug_func("Entering...");
 
     // CONFIG-G: neighbors|Space seperated list of MACS to use in "static" AP Neighbor Report| None
-    for (int band = 0; band < __DAWN_BAND_MAX; band++)
-        free_neighbor_mac_list(dawn_metric.neighbors[band]);
+    uci_clear_metric_neighbors();
 
     if (uci_pkg != NULL) {
         uci_unload(uci_ctx, uci_pkg);

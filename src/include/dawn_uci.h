@@ -60,6 +60,9 @@ bool dawn_ssid_is_managed(const char *ssid);
 
 int uci_set_network(char* uci_cmd);
 
+/** Release neighbor lists held by the current metric configuration. */
+void uci_clear_metric_neighbors(void);
+
 /**
  * Function that writes the hostname in the given char buffer.
 */
